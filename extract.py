@@ -1,18 +1,13 @@
+import asyncio
+import concurrent.futures
+import logging
+from urllib.parse import quote_plus
+
+import httpx
 import pandas as pd
 import sqlalchemy as db
 from dotenv import dotenv_values
-from urllib.parse import quote_plus
-import requests
-import asyncio
-import httpx
-from aiolimiter import AsyncLimiter
 
-#load environment variables
-env = dotenv_values()
-
-MARIADB_SERVER_ADDRESS = env['MARIADB_SERVER_ADDRESS']
-MARIADB_USERNAME = env['MARIADB_USERNAME']
-MARIADB_PASSWORD = env['MARIADB_PASSWORD']
 
 def create_database_engine() -> db.engine.Engine:
     """Create mariadb database engine
@@ -35,28 +30,48 @@ def query_type_id(db_engine, table_itemsDim):
         result = con.execute(stmt)
     return [row.typeID for row in result]
 
-async def fetch_market_history(region_id, type_id, client, limiter):
-    async with limiter:
-        response = await client.get(f'https://evetycoon.com/api/v1/market/history/{region_id}/{type_id}')
-    return response.json()
+
+async def fetch_market_history(region_id):
+    """Fetch market history from region with region id: region_id and write to csv file"""
+    limits = httpx.Limits(max_connections=None, max_keepalive_connections=None)
+    async with httpx.AsyncClient(limits=limits) as client:
+        async with asyncio.TaskGroup() as tg:
+            urls = [f'https://evetycoon.com/api/v1/market/history/{region_id}/{type_id}' for type_id in type_ids]
+            responses = [await tg.create_task(client.get(url)) for url in urls]
+            data = [response.json() for response in responses]
+            data = [entry for entries in data for entry in entries]
+            df = pd.DataFrame(data)
+            df.to_csv('marketHistory.csv', index=False, mode='a')
+
+
+def create_aio_loop(region_id):
+    """Synchronous function for multiprocess that run async fetch function"""
+    print(f'Fetching region history: {region_id}')
+    asyncio.run(fetch_market_history(region_id))
+
+
 async def main():
-    rate_limiter = AsyncLimiter(1000,1)
-    async with httpx.AsyncClient() as client:
-        task = []
-        for type_id in type_ids[:]:
-            task.append(fetch_market_history(10000002, type_id, client, rate_limiter))
-        data = await asyncio.gather(*task)
-    data = [entry for entries in data for entry in entries]
-    df = pd.DataFrame(data)
-    print(df)
-    return df
-db_engine = create_database_engine()
-db_metadata = db.MetaData()
-table_marketRegionsDim = db.Table('marketRegionsDim', db_metadata, autoload_with=db_engine)
-table_itemsDim = db.Table('itemsDim', db_metadata, autoload_with=db_engine)
-table_marketHistory = db.Table('marketHistory', db_metadata, autoload_with=db_engine)
+    """Create multiple processes, each fetching market data of a region, in batches of 10 processes/region per batch"""
+    loop = asyncio.get_running_loop()
+    with concurrent.futures.ProcessPoolExecutor(max_workers=10) as executor:
+        for region_id in region_ids:
+            loop.run_in_executor(executor, create_aio_loop, region_id)
 
-region_ids = query_region_id(db_engine, table_marketRegionsDim)
-type_ids = query_type_id(db_engine, table_itemsDim)
 
-result = asyncio.run(main())
+if __name__ == '__main__':
+    #load environment variables
+    env = dotenv_values()
+
+    MARIADB_SERVER_ADDRESS = env['MARIADB_SERVER_ADDRESS']
+    MARIADB_USERNAME = env['MARIADB_USERNAME']
+    MARIADB_PASSWORD = env['MARIADB_PASSWORD']
+
+    db_engine = create_database_engine()
+    db_metadata = db.MetaData()
+    table_marketRegionsDim = db.Table('marketRegionsDim', db_metadata, autoload_with=db_engine)
+    table_itemsDim = db.Table('itemsDim', db_metadata, autoload_with=db_engine)
+    region_ids = query_region_id(db_engine, table_marketRegionsDim)
+    type_ids = query_type_id(db_engine, table_itemsDim)
+
+    asyncio.run(main())
+
