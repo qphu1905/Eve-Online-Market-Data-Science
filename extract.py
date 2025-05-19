@@ -1,6 +1,5 @@
 import asyncio
 import concurrent.futures
-import logging
 from urllib.parse import quote_plus
 
 import httpx
@@ -45,7 +44,7 @@ async def fetch_market_history(region_id):
 
 
 def create_aio_loop(region_id):
-    """Synchronous function for multiprocess that run async fetch function"""
+    """Synchronous function for multiprocess that runs async fetch function"""
     print(f'Fetching region history: {region_id}')
     asyncio.run(fetch_market_history(region_id))
 
