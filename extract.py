@@ -1,5 +1,6 @@
 import asyncio
 import concurrent.futures
+import datetime
 from urllib.parse import quote_plus
 
 import httpx
@@ -17,11 +18,12 @@ def create_database_engine() -> db.engine.Engine:
     db_engine = db.create_engine(f'mariadb+mariadbconnector://{MARIADB_USERNAME}:%s@{MARIADB_SERVER_ADDRESS}/eve_online_database' % quote_plus(MARIADB_PASSWORD))
     return db_engine
 
-def query_region_id(db_engine, table_marketRegionsDim):
-    with db_engine.begin() as con:
-        stmt = db.select(table_marketRegionsDim.c.regionID)
-        result = con.execute(stmt)
-    return [row.regionID for row in result]
+
+def query_region_id(list_region_name):
+    response = httpx.post('https://esi.evetech.net/latest/universe/ids/?datasource=tranquility', json=list_region_name)
+    list_region_ids = [region['id'] for region in response.json()['regions']]
+    return list_region_ids
+
 
 def query_type_id(db_engine, table_itemsDim):
     with db_engine.begin() as con:
@@ -30,17 +32,46 @@ def query_type_id(db_engine, table_itemsDim):
     return [row.typeID for row in result]
 
 
+async def fetch(region_id, type_id, client, retries=2):
+    for retry in range(retries):
+        try:
+            url = f'https://esi.evetech.net/latest/markets/{region_id}/history/?datasource=tranquility&type_id={type_id}'
+            response = await client.get(url)
+            headers = response.headers
+            error_limit_reset_time = int(headers['x-esi-error-limit-reset'])
+            data = response.raise_for_status().json()
+            for entry in data:
+                entry['regionID'] = region_id
+                entry['typeID'] = type_id
+            return data
+        except httpx.HTTPError as exc:
+            print(headers)
+            if retry == retries - 1:
+                print(exc)
+                return []
+            if response.status_code == 500:
+                print(exc)
+                return []
+            elif response.status_code == 420:
+                wait_time = error_limit_reset_time
+                print(f'{exc}.\nRetrying after {wait_time} seconds...')
+                await asyncio.sleep(wait_time)
+        except Exception as e:
+            print(e)
+            raise asyncio.CancelledError
+
+
 async def fetch_market_history(region_id):
     """Fetch market history from region with region id: region_id and write to csv file"""
-    limits = httpx.Limits(max_connections=None, max_keepalive_connections=None)
-    async with httpx.AsyncClient(limits=limits) as client:
+    limits = httpx.Limits(max_connections=100)
+    async with httpx.AsyncClient(limits=limits, timeout=90) as client:
         async with asyncio.TaskGroup() as tg:
-            urls = [f'https://evetycoon.com/api/v1/market/history/{region_id}/{type_id}' for type_id in type_ids]
-            responses = [await tg.create_task(client.get(url)) for url in urls]
-            data = [response.json() for response in responses]
+            data = [await tg.create_task(fetch(region_id=region_id, type_id=type_id, client=client)) for type_id in type_ids]
             data = [entry for entries in data for entry in entries]
             df = pd.DataFrame(data)
-            df.to_csv('marketHistory.csv', index=False, mode='a')
+            filename = f'marketHistory_{datetime.date.today()}.csv'
+            df.to_csv(filename, index=False, header=False, mode='a')
+            print(f'{region_id} market history written to csv.')
 
 
 def create_aio_loop(region_id):
@@ -52,7 +83,7 @@ def create_aio_loop(region_id):
 async def main():
     """Create multiple processes, each fetching market data of a region, in batches of 10 processes/region per batch"""
     loop = asyncio.get_running_loop()
-    with concurrent.futures.ProcessPoolExecutor(max_workers=10) as executor:
+    with concurrent.futures.ProcessPoolExecutor(max_workers=len(region_ids)) as executor:
         for region_id in region_ids:
             loop.run_in_executor(executor, create_aio_loop, region_id)
 
@@ -69,7 +100,8 @@ if __name__ == '__main__':
     db_metadata = db.MetaData()
     table_marketRegionsDim = db.Table('marketRegionsDim', db_metadata, autoload_with=db_engine)
     table_itemsDim = db.Table('itemsDim', db_metadata, autoload_with=db_engine)
-    region_ids = query_region_id(db_engine, table_marketRegionsDim)
+
+    region_ids = query_region_id(['The Forge', 'Domain', 'Sinq Laison', 'Heimatar', 'Metropolis', 'Perrigen Falls', 'Tenerifis'])
     type_ids = query_type_id(db_engine, table_itemsDim)
 
     asyncio.run(main())
