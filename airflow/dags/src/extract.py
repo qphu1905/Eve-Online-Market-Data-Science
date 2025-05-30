@@ -33,7 +33,7 @@ def query_type_id(db_engine, table_itemsDim):
 
 
 async def fetch(region_id, type_id, client, retries=2):
-    for retry in range(retries):
+    while retries:
         try:
             url = f'https://esi.evetech.net/latest/markets/{region_id}/history/?datasource=tranquility&type_id={type_id}'
             response = await client.get(url)
@@ -45,13 +45,13 @@ async def fetch(region_id, type_id, client, retries=2):
                 entry['typeID'] = type_id
             return data
         except httpx.HTTPError as exc:
-            print(headers)
-            if retry == retries - 1:
+            print(f'Headers:{headers}')
+            if retries == 0:
                 print(exc)
                 return []
             if response.status_code == 500:
-                print(exc)
-                return []
+                print(f'{exc}. Retrying...')
+                retries -= 1
             elif response.status_code == 420:
                 wait_time = error_limit_reset_time
                 print(f'{exc}.\nRetrying after {wait_time} seconds...')
@@ -69,8 +69,7 @@ async def fetch_market_history(region_id, type_ids):
             data = [await tg.create_task(fetch(region_id=region_id, type_id=type_id, client=client)) for type_id in type_ids]
             data = [entry for entries in data for entry in entries]
             df = pd.DataFrame(data)
-            # filename = f'marketHistory_{datetime.date.today()}.csv'
-            filename = 'test.csv'
+            filename = f'../../data/marketHistory_{datetime.date.today()}.csv'
             df.to_csv(filename, index=False, header=False, mode='a')
             print(f'{region_id} market history written to csv.')
 
@@ -99,7 +98,6 @@ def main():
 
     db_engine = create_database_engine(MARIADB_USERNAME, MARIADB_PASSWORD, MARIADB_SERVER_ADDRESS)
     db_metadata = db.MetaData()
-    table_marketRegionsDim = db.Table('marketRegionsDim', db_metadata, autoload_with=db_engine)
     table_itemsDim = db.Table('itemsDim', db_metadata, autoload_with=db_engine)
 
     region_ids = query_region_id(['The Forge', 'Domain', 'Sinq Laison', 'Heimatar', 'Metropolis', 'Perrigen Falls', 'Tenerifis'])
