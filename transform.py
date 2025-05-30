@@ -24,13 +24,18 @@ def transform(df: pd.DataFrame) -> pd.DataFrame:
     df['20dDonchianLow'] = grouped_df['lowest'].transform(lambda x: x.rolling(window=20, min_periods=1).min().round(2))
     df['55dDonchianHigh'] = grouped_df['highest'].transform(lambda x: x.rolling(window=55, min_periods=1).max().round(2))
     df['55dDonchianLow'] = grouped_df['lowest'].transform(lambda x: x.rolling(window=55, min_periods=1).min().round(2))
-    df = df[df['date'] == (pd.to_datetime('today') - datetime.timedelta(days=1)).strftime('%Y-%m-%d')]
+    df = df[df['date'] == (pd.to_datetime('today') - datetime.timedelta(days=2)).strftime('%Y-%m-%d')]
     print(df)
     return df
 
-if __name__ == '__main__':
-    filename = f'marketHistory_{datetime.date.today()}.csv'
+def main():
+    # filename = f'marketHistory_{datetime.date.today()}.csv'
+    filename = 'test.csv'
     df = read_csv(filename)
     df = get_last_56_days_data(df)
     df = transform(df)
     df.to_csv(filename, mode='w', index=False, header=False)
+
+
+if __name__ == '__main__':
+    main()

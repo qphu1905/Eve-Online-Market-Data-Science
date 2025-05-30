@@ -21,7 +21,8 @@ def load(filename: str, db_engine: db.engine.Engine):
     print(df.head())
     df.to_sql('marketHistory', con=db_engine, if_exists='append', index=False)
 
-if __name__ == '__main__':
+
+def main():
     #load environment variables
     env = dotenv_values()
 
@@ -32,3 +33,7 @@ if __name__ == '__main__':
     db_engine = create_database_engine()
     filename = f'marketHistory_{datetime.date.today()}'
     load(filename, db_engine)
+
+
+if __name__ == '__main__':
+    main()

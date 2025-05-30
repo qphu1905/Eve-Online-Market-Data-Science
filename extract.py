@@ -9,13 +9,13 @@ import sqlalchemy as db
 from dotenv import dotenv_values
 
 
-def create_database_engine() -> db.engine.Engine:
+def create_database_engine(username, password, server_address, ) -> db.engine.Engine:
     """Create mariadb database engine
     :parameter: None
     :return: db_engine: sqlalchemy.engine.Engine
     """
 
-    db_engine = db.create_engine(f'mariadb+mariadbconnector://{MARIADB_USERNAME}:%s@{MARIADB_SERVER_ADDRESS}/eve_online_database' % quote_plus(MARIADB_PASSWORD))
+    db_engine = db.create_engine(f'mariadb+mariadbconnector://{username}:%s@{server_address}/eve_online_database' % quote_plus(password))
     return db_engine
 
 
@@ -61,7 +61,7 @@ async def fetch(region_id, type_id, client, retries=2):
             raise asyncio.CancelledError
 
 
-async def fetch_market_history(region_id):
+async def fetch_market_history(region_id, type_ids):
     """Fetch market history from region with region id: region_id and write to csv file"""
     limits = httpx.Limits(max_connections=100)
     async with httpx.AsyncClient(limits=limits, timeout=90) as client:
@@ -69,26 +69,27 @@ async def fetch_market_history(region_id):
             data = [await tg.create_task(fetch(region_id=region_id, type_id=type_id, client=client)) for type_id in type_ids]
             data = [entry for entries in data for entry in entries]
             df = pd.DataFrame(data)
-            filename = f'marketHistory_{datetime.date.today()}.csv'
+            # filename = f'marketHistory_{datetime.date.today()}.csv'
+            filename = 'test.csv'
             df.to_csv(filename, index=False, header=False, mode='a')
             print(f'{region_id} market history written to csv.')
 
 
-def create_aio_loop(region_id):
+def create_aio_loop(region_id, type_ids):
     """Synchronous function for multiprocess that runs async fetch function"""
     print(f'Fetching region history: {region_id}')
-    asyncio.run(fetch_market_history(region_id))
+    asyncio.run(fetch_market_history(region_id, type_ids))
 
 
-async def main():
-    """Create multiple processes, each fetching market data of a region, in batches of 10 processes/region per batch"""
+async def create_subprocess(region_ids, type_ids):
+    """Create multiple processes, each fetching market data of a region"""
     loop = asyncio.get_running_loop()
     with concurrent.futures.ProcessPoolExecutor(max_workers=len(region_ids)) as executor:
         for region_id in region_ids:
-            loop.run_in_executor(executor, create_aio_loop, region_id)
+            loop.run_in_executor(executor, create_aio_loop, region_id, type_ids)
 
 
-if __name__ == '__main__':
+def main():
     #load environment variables
     env = dotenv_values()
 
@@ -96,7 +97,7 @@ if __name__ == '__main__':
     MARIADB_USERNAME = env['MARIADB_USERNAME']
     MARIADB_PASSWORD = env['MARIADB_PASSWORD']
 
-    db_engine = create_database_engine()
+    db_engine = create_database_engine(MARIADB_USERNAME, MARIADB_PASSWORD, MARIADB_SERVER_ADDRESS)
     db_metadata = db.MetaData()
     table_marketRegionsDim = db.Table('marketRegionsDim', db_metadata, autoload_with=db_engine)
     table_itemsDim = db.Table('itemsDim', db_metadata, autoload_with=db_engine)
@@ -104,5 +105,9 @@ if __name__ == '__main__':
     region_ids = query_region_id(['The Forge', 'Domain', 'Sinq Laison', 'Heimatar', 'Metropolis', 'Perrigen Falls', 'Tenerifis'])
     type_ids = query_type_id(db_engine, table_itemsDim)
 
-    asyncio.run(main())
+    asyncio.run(create_subprocess(region_ids, type_ids))
+
+
+if __name__ == '__main__':
+    main()
 
