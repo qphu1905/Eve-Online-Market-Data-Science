@@ -32,30 +32,34 @@ def query_type_id(db_engine, table_itemsDim):
     return [row.typeID for row in result]
 
 
-async def fetch(region_id, type_id, client, retries=2):
-    while retries:
+async def fetch(region_id, type_id, client, retry=2):
+    while retry:
         try:
             url = f'https://esi.evetech.net/latest/markets/{region_id}/history/?datasource=tranquility&type_id={type_id}'
             response = await client.get(url)
             headers = response.headers
-            error_limit_reset_time = int(headers['x-esi-error-limit-reset'])
             data = response.raise_for_status().json()
+
+            retry = 0
             for entry in data:
                 entry['regionID'] = region_id
                 entry['typeID'] = type_id
             return data
         except httpx.HTTPError as exc:
-            print(f'Headers:{headers}')
-            if retries == 0:
+            print(headers)
+            if retry == 0:
                 print(exc)
                 return []
             if response.status_code == 500:
                 print(f'{exc}. Retrying...')
-                retries -= 1
+                retry -= 1
+            elif response.status_code == 502:
+                print(f'{exc}. Retrying...')
+                retry -= 1
             elif response.status_code == 420:
-                wait_time = error_limit_reset_time
-                print(f'{exc}.\nRetrying after {wait_time} seconds...')
-                await asyncio.sleep(wait_time)
+                error_limit_reset_time = int(headers['x-esi-error-limit-reset'])
+                print(f'{exc}.\nRetrying after {error_limit_reset_time} seconds...')
+                await asyncio.sleep(error_limit_reset_time)
         except Exception as e:
             print(e)
             raise asyncio.CancelledError
@@ -69,7 +73,7 @@ async def fetch_market_history(region_id, type_ids):
             data = [await tg.create_task(fetch(region_id=region_id, type_id=type_id, client=client)) for type_id in type_ids]
             data = [entry for entries in data for entry in entries]
             df = pd.DataFrame(data)
-            filename = f'../../data/marketHistory_{datetime.date.today()}.csv'
+            filename = f'/data/marketHistory_{datetime.date.today}.csv'
             df.to_csv(filename, index=False, header=False, mode='a')
             print(f'{region_id} market history written to csv.')
 
