@@ -11,7 +11,6 @@ def read_csv(filename: str) -> pd.DataFrame:
 def get_last_56_days_data(df: pd.DataFrame) -> pd.DataFrame:
     date_56_days_ago = (pd.to_datetime('today') - datetime.timedelta(days=56)).strftime('%Y-%m-%d')
     df = df[df['date'] >= date_56_days_ago]
-    print(df)
     return df
 
 
@@ -24,13 +23,11 @@ def transform(df: pd.DataFrame) -> pd.DataFrame:
     df['20dDonchianLow'] = grouped_df['lowest'].transform(lambda x: x.rolling(window=20, min_periods=1).min().round(2))
     df['55dDonchianHigh'] = grouped_df['highest'].transform(lambda x: x.rolling(window=55, min_periods=1).max().round(2))
     df['55dDonchianLow'] = grouped_df['lowest'].transform(lambda x: x.rolling(window=55, min_periods=1).min().round(2))
-    df = df[df['date'] == (pd.to_datetime('today') - datetime.timedelta(days=2)).strftime('%Y-%m-%d')]
-    print(df)
+    df = df[df['date'] == (pd.to_datetime('today') - datetime.timedelta(days=1)).strftime('%Y-%m-%d')]
     return df
 
 def main():
-    # filename = f'marketHistory_{datetime.date.today()}.csv'
-    filename = 'test.csv'
+    filename = f'/data/marketHistory_{datetime.date.today()}.csv'
     df = read_csv(filename)
     df = get_last_56_days_data(df)
     df = transform(df)
