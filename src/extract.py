@@ -38,27 +38,38 @@ async def fetch(region_id, type_id, client, retry=2):
             url = f'https://esi.evetech.net/latest/markets/{region_id}/history/?datasource=tranquility&type_id={type_id}'
             response = await client.get(url)
             headers = response.headers
-            data = response.raise_for_status().json()
-            retry = 0
-            for entry in data:
-                entry['regionID'] = region_id
-                entry['typeID'] = type_id
-            return data
+            response.raise_for_status()
+            data = response.json()
+            if data is None:
+                print(response)
+                print(headers)
+                return []
+            else:
+                for entry in data:
+                    entry['regionID'] = region_id
+                    entry['typeID'] = type_id
+                return data
         except httpx.HTTPError as exc:
             print(headers)
-            if retry == 0:
+            # retry == 1 is the last retry attempt
+            # because the retry loop terminates if retry == 0
+            if retry == 1:
                 print(exc)
                 return []
-            if response.status_code == 500:
-                print(f'{exc}. Retrying...')
-                retry -= 1
-            elif response.status_code == 502:
-                print(f'{exc}. Retrying...')
-                retry -= 1
-            elif response.status_code == 420:
-                error_limit_reset_time = int(headers['x-esi-error-limit-reset'])
-                print(f'{exc}.\nRetrying after {error_limit_reset_time} seconds...')
-                await asyncio.sleep(error_limit_reset_time)
+            else:
+                if response.status_code == 500:
+                    print(f'{exc}. Retrying...')
+                    retry -= 1
+                elif response.status_code == 502:
+                    print(f'{exc}. Retrying...')
+                    retry -= 1
+                elif response.status_code == 420:
+                    error_limit_reset_time = int(headers['x-esi-error-limit-reset'])
+                    print(f'{exc}.\nRetrying after {error_limit_reset_time} seconds...')
+                    await asyncio.sleep(error_limit_reset_time)
+                else:
+                    print(f'{exc}. Retrying...')
+                    retry -= 1
         except Exception as e:
             print(e)
             raise asyncio.CancelledError
