@@ -41,6 +41,7 @@ async def fetch(region_id, type_id, client, retry=2):
             response.raise_for_status()
             data = response.json()
             if data is None:
+                print(url)
                 print(response)
                 print(headers)
                 return []
