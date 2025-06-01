@@ -18,7 +18,8 @@ def create_database_engine(username, password, server_address, ) -> db.engine.En
 def load(filename: str, db_engine: db.engine.Engine):
     names= ['date', 'regionID', 'typeID', 'average', 'highest', 'lowest', 'orderCount', 'volume', '5dMovingAverage', '20dMovingAverage', '50dMovingAverage', '20dDonchianHigh', '20dDonchianLow', '55dDonchianHigh', '55dDonchianLow']
     df = pd.read_csv(filename, header=None, index_col=False, names=names)
-    df.to_sql('marketHistory', con=db_engine, if_exists='append', index=False)
+    with db_engine.connect() as conn:
+        df.to_sql('marketHistory', con=conn, if_exists='append', index=False)
 
 
 def main():
@@ -30,7 +31,7 @@ def main():
     MARIADB_PASSWORD = env['MARIADB_PASSWORD']
 
     db_engine = create_database_engine(MARIADB_USERNAME, MARIADB_PASSWORD, MARIADB_SERVER_ADDRESS)
-    filename = f'../../data/marketHistory_{datetime.date.today()}.csv'
+    filename = f'/data/marketHistory_{datetime.date.today()}.csv'
     load(filename, db_engine)
 
 
