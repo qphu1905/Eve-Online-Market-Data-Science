@@ -2,6 +2,7 @@ from airflow.providers.docker.operators.docker import DockerOperator
 from airflow.sdk import DAG
 from datetime import datetime, timedelta, timezone
 from docker.types import Mount
+from typing_extensions import Literal
 from os import getenv
 
 with DAG(
@@ -16,12 +17,21 @@ with DAG(
 ) as dag:
     extract_task = DockerOperator(task_id='extract',
                                   image='quocphu1905/eve_online_market_data_science:extract_latest',
-                                  mounts=[Mount(source=f"{getenv("AIRFLOW__DIRECTORY")}/data", target="/data", type="bind")])
+                                  mounts=[Mount(source=f"{getenv("AIRFLOW__DIRECTORY")}/data", target="/data", type="bind")],
+                                  mount_tmp_dir=False,
+                                  force_pull=True,
+                                  auto_remove="success")
     transform_task = DockerOperator(task_id='transform',
                                     image='quocphu1905/eve_online_market_data_science:transform_latest',
-                                    mounts=[Mount(source=f"{getenv("AIRFLOW__DIRECTORY")}/data", target="/data", type="bind")])
+                                    mounts=[Mount(source=f"{getenv("AIRFLOW__DIRECTORY")}/data", target="/data", type="bind")],
+                                    mount_tmp_dir=False,
+                                    force_pull=True,
+                                    auto_remove="success")
     load_task = DockerOperator(task_id='load',
-                                    image='quocphu1905/eve_online_market_data_science:load_latest',
-                                    mounts=[Mount(source=f"{getenv("AIRFLOW__DIRECTORY")}/data", target="/data", type="bind")])
+                               image='quocphu1905/eve_online_market_data_science:load_latest',
+                               mounts=[Mount(source=f"{getenv("AIRFLOW__DIRECTORY")}/data", target="/data", type="bind")],
+                               mount_tmp_dir=False,
+                               force_pull=True,
+                               auto_remove="success")
 
     extract_task >> transform_task >> load_task
