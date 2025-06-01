@@ -1,4 +1,2 @@
-airflow/dags/src/.env
-/airflow/airflow.cfg
-/airflow/airflow.db
-/airflow/simple_auth_manager_passwords.json.generated
+src/.env
+/data
