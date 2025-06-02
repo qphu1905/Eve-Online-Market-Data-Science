@@ -1,6 +1,7 @@
 import asyncio
 import concurrent.futures
 import datetime
+import sys
 from urllib.parse import quote_plus
 
 import httpx
@@ -73,7 +74,7 @@ async def fetch(region_id, type_id, client, retry=2):
                     retry -= 1
         except Exception as e:
             print(e)
-            raise asyncio.CancelledError
+            sys.exit(1)
 
 
 async def fetch_market_history(region_id, type_ids):
@@ -93,7 +94,6 @@ def create_aio_loop(region_id, type_ids):
     """Synchronous function for multiprocess that runs async fetch function"""
     print(f'Fetching region history: {region_id}')
     asyncio.run(fetch_market_history(region_id, type_ids))
-
 
 async def create_subprocess(region_ids, type_ids):
     """Create multiple processes, each fetching market data of a region"""
