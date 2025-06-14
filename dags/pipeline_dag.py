@@ -1,9 +1,19 @@
+import os
+
 from airflow.providers.docker.operators.docker import DockerOperator
+from airflow.operators.python import PythonOperator
 from airflow.sdk import DAG
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, date, timedelta, timezone
 from docker.types import Mount
 from typing_extensions import Literal
 from os import getenv
+
+
+def extract_failure_cleanup():
+    filename = f'opt/airflow/data/marketHistory_{date.today()}.csv'
+    if os.path.isfile(filename):
+        os.remove(filename)
+
 
 with DAG(
     dag_id="Eve_Online_market_data_ETL_pipeline",
@@ -33,5 +43,8 @@ with DAG(
                                mount_tmp_dir=False,
                                force_pull=True,
                                auto_remove="success")
-
+    extract_failure_cleanup_task = PythonOperator(task_id='extract_failure_cleanup',
+                                                  python_callable=extract_failure_cleanup,
+                                                  trigger_rule='one_failed')
     extract_task >> transform_task >> load_task
+    extract_task >> extract_failure_cleanup_task
