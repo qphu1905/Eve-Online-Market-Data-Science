@@ -23,6 +23,7 @@ def create_database_engine(username, password, server_address, ) -> db.engine.En
 def query_region_id(list_region_name):
     response = httpx.post('https://esi.evetech.net/latest/universe/ids/?datasource=tranquility', json=list_region_name)
     list_region_ids = [region['id'] for region in response.json()['regions']]
+    list_region_ids.sort()
     return list_region_ids
 
 
@@ -41,22 +42,19 @@ async def fetch(region_id, type_id, client, retry=2):
             headers = response.headers
             response.raise_for_status()
             data = response.json()
-            if data is None:
-                print(url)
-                print(response)
-                print(headers)
-                return []
-            else:
+            if data:
                 for entry in data:
                     entry['regionID'] = region_id
                     entry['typeID'] = type_id
                 return data
+            else:
+                return []
         except httpx.HTTPError as exc:
             print(headers)
             # retry == 1 is the last retry attempt
             # because the retry loop terminates if retry == 0
             if retry == 1:
-                print(exc)
+                print(f'Retry limit reached for {response.url}')
                 return []
             else:
                 if response.status_code == 500:
@@ -113,11 +111,10 @@ def main():
 
     db_engine = create_database_engine(MARIADB_USERNAME, MARIADB_PASSWORD, MARIADB_SERVER_ADDRESS)
     db_metadata = db.MetaData()
-    table_itemsDim = db.Table('itemsDim', db_metadata, autoload_with=db_engine)
+    table_items_dim = db.Table('itemsDim', db_metadata, autoload_with=db_engine)
 
     region_ids = query_region_id(['The Forge', 'Domain', 'Sinq Laison', 'Heimatar', 'Metropolis', 'Perrigen Falls', 'Tenerifis'])
-    type_ids = query_type_id(db_engine, table_itemsDim)
-
+    type_ids = query_type_id(db_engine, table_items_dim)
     asyncio.run(create_subprocess(region_ids, type_ids))
 
 
