@@ -1,4 +1,7 @@
+import sys
+
 import pandas as pd
+import sqlalchemy
 import sqlalchemy as db
 from dotenv import dotenv_values
 from urllib.parse import quote_plus
@@ -15,31 +18,35 @@ def create_database_engine(username, password, server_address) -> db.engine.Engi
     return db_engine
 
 
-def clear_ingest(db_engine: db.engine.Engine, ingest):
+def clear_ingest(db_engine: db.engine.Engine):
     """Delete all entry in temporary ingest table"""
 
+    print("Clearing ingest table")
     with db_engine.connect() as connection:
-        stmt = ingest.delete()
-        connection.execute(stmt)
+        query = sqlalchemy.text("TRUNCATE marketHistoryDataIngest")
+        connection.execute(query)
+    print("Ingest table cleared")
 
 
 def load_csv_to_ingest(filename: str, db_engine: db.engine.Engine):
     """Load market data in csv file into temporary ingest table"""
-
+    print('Loading to staging')
     names= ['date', 'regionID', 'typeID', 'average', 'highest', 'lowest', 'orderCount', 'volume', '1dLaggedReturn', 'highLowRatio', '5dPriceMovingAverage', '20dPriceMovingAverage', '50dPriceMovingAverage', '5dVolumeMovingAverage', '20dVolumeMovingAverage', '50dVolumeMovingAverage', '20dDonchianHigh', '20dDonchianLow', '55dDonchianHigh', '55dDonchianLow']
     with pd.read_csv(filename, header=None, index_col=False, names=names, chunksize=50000) as reader:
         for df in reader:
             df.to_sql('marketHistoryDataIngest', con=db_engine, if_exists='append', index=False)
+    print('Loaded to staging')
 
 
-def load_ingest_to_prod(db_engine: db.engine.Engine, ingest, prod):
+def load_ingest_to_prod(ingest, prod, db_engine: db.engine.Engine):
     """Load data from ingest table into prod table
        Ignore duplicate"""
-
+    print('loading to prod')
     ingest_columns = [column.name for column in ingest.c]
     with db_engine.begin() as conn:
         stmt = db.insert(prod).from_select(ingest_columns, db.select(ingest)).prefix_with('IGNORE')
         conn.execute(stmt)
+    print('loaded to prod')
 
 
 def main():
@@ -56,9 +63,13 @@ def main():
     table_prod = db.Table('marketHistory', db_metadata, autoload_with=db_engine)
 
     filename = f'/data/marketHistory_{datetime.date.today()}.csv'
-    clear_ingest(db_engine, table_ingest)
-    load_csv_to_ingest(filename, db_engine)
-    load_ingest_to_prod(db_engine, table_ingest, table_prod)
+    try:
+        clear_ingest(db_engine)
+        load_csv_to_ingest(filename, db_engine)
+        load_ingest_to_prod(table_ingest, table_prod, db_engine)
+    except Exception as e:
+        print(e)
+        sys.exit(1)
 
 
 if __name__ == '__main__':
