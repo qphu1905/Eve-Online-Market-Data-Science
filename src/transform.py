@@ -1,3 +1,5 @@
+import sys
+
 import pandas as pd
 import numpy as np
 import datetime
@@ -48,10 +50,14 @@ def transform(df: pd.DataFrame) -> pd.DataFrame:
 
 def main():
     filename = f'/data/marketHistory_{datetime.date.today()}.csv'
-    df = read_csv(filename)
-    df = get_56_days_data(df)
-    df = transform(df)
-    df.to_csv(filename, mode='w', index=False, header=False)
+    try:
+        df = read_csv(filename)
+        df = get_56_days_data(df)
+        df = transform(df)
+        df.to_csv(filename, mode='w', index=False, header=False)
+    except Exception as e:
+        print(e)
+        sys.exit(1)
 
 
 if __name__ == '__main__':
