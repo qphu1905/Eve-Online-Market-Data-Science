@@ -80,11 +80,13 @@ async def fetch_market_history(region_id, type_ids):
     limits = httpx.Limits(max_connections=100)
     async with httpx.AsyncClient(limits=limits, timeout=90) as client:
         async with asyncio.TaskGroup() as tg:
+            filename = f'/data/marketHistory_{datetime.date.today()}.csv'
+            temp_file = f'/data/ingest.csv'
             data = [await tg.create_task(fetch(region_id=region_id, type_id=type_id, client=client)) for type_id in type_ids]
             data = [entry for entries in data for entry in entries]
             df = pd.DataFrame(data)
-            filename = f'/data/marketHistory_{datetime.date.today()}.csv'
             df.to_csv(filename, index=False, header=False, mode='a')
+            df.to_csv(temp_file, index=False, header=False, mode='a')
             print(f'{region_id} market history written to csv.')
 
 
