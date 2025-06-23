@@ -48,7 +48,7 @@ def transform(df: pd.DataFrame) -> pd.DataFrame:
         price_moving_average_std = f'{window}dPriceMovingAverageStd'
         highest_moving_average = f'{window}dHighestMovingAverage'
         lowest_moving_average = f'{window}dLowestMovingAverage'
-        relative_price_strength = f'RelativePriceStrength{window}dSMA'
+        relative_price_strength = f'{window}dRelativePriceStrength'
 
         volume_moving_average = f'{window}dVolumeMovingAverage'
         relative_volume_strength = f'{window}dRelativeVolumeStrength'
@@ -70,12 +70,12 @@ def transform(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def main():
-    filename = f'../data/tradeHubHistory_cut.csv'
+    filename = f'/data/ingest.csv'
     try:
         df = read_csv(filename)
         df = get_period_data(df)
         df = transform(df)
-        df.to_csv("../data/tradeHubHistory_transformed.csv", mode='w', index=False, header=False)
+        df.to_csv(filename, mode='w', index=False, header=False)
     except Exception:
         print(traceback.format_exc())
         sys.exit(1)
