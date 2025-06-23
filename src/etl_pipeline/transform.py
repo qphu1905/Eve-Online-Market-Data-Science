@@ -63,7 +63,7 @@ def transform(df: pd.DataFrame) -> pd.DataFrame:
         df[relative_price_strength] = grouped_df[['average', price_moving_average]].apply(lambda x: x.average / x[price_moving_average]).round(5)
 
         df[volume_moving_average] = grouped_df['volume'].transform(lambda x: x.rolling(window=window).mean().round(5))
-        df[relative_volume_strength] = grouped_df[['volume', volume_moving_average]].apply(lambda x: x.average / x[volume_moving_average]).round(5)
+        df[relative_volume_strength] = grouped_df[['volume', volume_moving_average]].apply(lambda x: x.volume / x[volume_moving_average]).round(5)
 
     df.dropna(inplace=True)
     return df
