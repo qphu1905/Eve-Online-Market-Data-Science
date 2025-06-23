@@ -31,7 +31,62 @@ def clear_ingest(db_engine: db.engine.Engine):
 def load_csv_to_ingest(filename: str, db_engine: db.engine.Engine):
     """Load market data in csv file into temporary ingest table"""
     print('Loading to staging')
-    names= ['date', 'regionID', 'typeID', 'average', 'highest', 'lowest', 'orderCount', 'volume', '1dLaggedReturn', 'highLowRatio', '5dPriceMovingAverage', '20dPriceMovingAverage', '50dPriceMovingAverage', '5dVolumeMovingAverage', '20dVolumeMovingAverage', '50dVolumeMovingAverage', '20dDonchianHigh', '20dDonchianLow', '55dDonchianHigh', '55dDonchianLow']
+    names = ['date', 'regionID', 'typeID', 'average', 'highest', 'lowest', 'orderCount', 'volume',
+             '2dLaggedReturn',
+             '2dMomentum',
+             '2dPriceMovingAverage',
+             '2dPriceMovingAverageStd',
+             '2dHighestMovingAverage',
+             '2dLowestMovingAverage',
+             '2dRelativePriceStrength',
+             '2dVolumeMovingAverage',
+             '2dRelativeVolumeStrength',
+             '5dLaggedReturn',
+             '5dMomentum',
+             '5dPriceMovingAverage',
+             '5dPriceMovingAverageStd',
+             '5dHighestMovingAverage',
+             '5dLowestMovingAverage',
+             '5dRelativePriceStrength',
+             '5dVolumeMovingAverage',
+             '5dRelativeVolumeStrength',
+             '10dLaggedReturn',
+             '10dMomentum',
+             '10dPriceMovingAverage',
+             '10dPriceMovingAverageStd',
+             '10dHighestMovingAverage',
+             '10dLowestMovingAverage',
+             '10dRelativePriceStrength',
+             '10dVolumeMovingAverage',
+             '10dRelativeVolumeStrength',
+             '20dLaggedReturn',
+             '20dMomentum',
+             '20dPriceMovingAverage',
+             '20dPriceMovingAverageStd',
+             '20dHighestMovingAverage',
+             '20dLowestMovingAverage',
+             '20dRelativePriceStrength',
+             '20dVolumeMovingAverage',
+             '20dRelativeVolumeStrength',
+             '50dLaggedReturn',
+             '50dMomentum',
+             '50dPriceMovingAverage',
+             '50dPriceMovingAverageStd',
+             '50dHighestMovingAverage',
+             '50dLowestMovingAverage',
+             '50dRelativePriceStrength',
+             '50dVolumeMovingAverage',
+             '50dRelativeVolumeStrength',
+             '100dLaggedReturn',
+             '100dMomentum',
+             '100dPriceMovingAverage',
+             '100dPriceMovingAverageStd',
+             '100dHighestMovingAverage',
+             '100dLowestMovingAverage',
+             '100dRelativePriceStrength',
+             '100dVolumeMovingAverage',
+             '100dRelativeVolumeStrength']
+
     with pd.read_csv(filename, header=None, index_col=False, names=names, chunksize=50000) as reader:
         for df in reader:
             df.to_sql('marketHistoryDataIngest', con=db_engine, if_exists='append', index=False)
@@ -62,7 +117,7 @@ def main():
     table_ingest = db.Table('marketHistoryDataIngest', db_metadata, autoload_with=db_engine)
     table_prod = db.Table('marketHistory', db_metadata, autoload_with=db_engine)
 
-    filename = f'/data/marketHistory_{datetime.date.today()}.csv'
+    filename = f'/data/ingest.csv'
     try:
         clear_ingest(db_engine)
         load_csv_to_ingest(filename, db_engine)
