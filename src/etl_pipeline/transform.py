@@ -3,7 +3,6 @@ import traceback
 
 import pandas as pd
 import numpy as np
-import datetime
 
 
 def read_csv(filename: str) -> pd.DataFrame:
@@ -26,18 +25,10 @@ def read_csv(filename: str) -> pd.DataFrame:
     return df
 
 
-def get_period_data(df: pd.DataFrame, period: int=100) -> pd.DataFrame:
-    """Filter data from only the last 56 days to perform transformation"""
-
-    start_date = (datetime.date.today() - datetime.timedelta(days=period)).strftime("%Y-%m-%d")
-    df = df[df['date'] >= start_date]
-    return df
-
-
 def transform(df: pd.DataFrame) -> pd.DataFrame:
     """Perform transformation on data"""
 
-    grouped_df = df.groupby(['regionID', 'typeID'], group_keys=False)
+    grouped_df = df.groupby(['regionID', 'typeID'], group_keys=False, as_index=False)
 
     windows = [2, 5, 10, 20, 50, 100]
 
@@ -53,16 +44,16 @@ def transform(df: pd.DataFrame) -> pd.DataFrame:
         volume_moving_average = f'{window}dVolumeMovingAverage'
         relative_volume_strength = f'{window}dRelativeVolumeStrength'
 
-        df[lagged_return] = grouped_df['average'].transform(lambda x: np.log(x / x.shift(window)))
-        df[momentum] = grouped_df['average'].transform(lambda x: x - x.shift(window))
+        df[lagged_return] = grouped_df['average'].transform(lambda x: np.log(x / x.shift(window))).round(5)
+        df[momentum] = grouped_df['average'].transform(lambda x: x - x.shift(window)).round(5)
 
-        df[price_moving_average] = grouped_df['average'].transform(lambda x: x.rolling(window=window).mean().round(5))
-        df[price_moving_average_std] = grouped_df['average'].transform(lambda x: x.rolling(window=window).std().round(5))
-        df[highest_moving_average] = grouped_df['highest'].transform(lambda x: x.rolling(window=window).max().round(5))
-        df[lowest_moving_average] = grouped_df['lowest'].transform(lambda x: x.rolling(window=window).min().round(5))
+        df[price_moving_average] = grouped_df['average'].transform(lambda x: x.rolling(window=window, min_periods=2).mean().round(5))
+        df[price_moving_average_std] = grouped_df['average'].transform(lambda x: x.rolling(window=window, min_periods=2).std().round(5))
+        df[highest_moving_average] = grouped_df['highest'].transform(lambda x: x.rolling(window=window, min_periods=2).max().round(5))
+        df[lowest_moving_average] = grouped_df['lowest'].transform(lambda x: x.rolling(window=window, min_periods=2).min().round(5))
         df[relative_price_strength] = grouped_df[['average', price_moving_average]].apply(lambda x: x.average / x[price_moving_average]).round(5)
 
-        df[volume_moving_average] = grouped_df['volume'].transform(lambda x: x.rolling(window=window).mean().round(5))
+        df[volume_moving_average] = grouped_df['volume'].transform(lambda x: x.rolling(window=window, min_periods=2).mean().round(5))
         df[relative_volume_strength] = grouped_df[['volume', volume_moving_average]].apply(lambda x: x.volume / x[volume_moving_average]).round(5)
 
     df.dropna(inplace=True)
@@ -73,7 +64,6 @@ def main():
     filename = f'/data/ingest.csv'
     try:
         df = read_csv(filename)
-        df = get_period_data(df)
         df = transform(df)
         df.to_csv(filename, mode='w', index=False, header=False)
     except Exception:
