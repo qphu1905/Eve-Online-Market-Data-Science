@@ -1,11 +1,9 @@
 import sys
 
 import pandas as pd
-import sqlalchemy
 import sqlalchemy as db
 from dotenv import dotenv_values
 from urllib.parse import quote_plus
-import datetime
 
 
 def create_database_engine(username, password, server_address) -> db.engine.Engine:
@@ -23,7 +21,7 @@ def clear_ingest(db_engine: db.engine.Engine):
 
     print("Clearing ingest table")
     with db_engine.connect() as connection:
-        query = sqlalchemy.text("TRUNCATE marketHistoryDataIngest")
+        query = db.text("TRUNCATE marketHistoryDataIngest")
         connection.execute(query)
     print("Ingest table cleared")
 
